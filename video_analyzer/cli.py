@@ -7,6 +7,7 @@ import sys
 from typing import Optional
 import torch
 import torch.backends.mps
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .config import Config, get_client, get_model
 from .frame import VideoProcessor
@@ -81,6 +82,7 @@ def main():
     parser.add_argument("--language", type=str, default=None)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--temperature", type=float, help="Temperature for LLM generation")
+    parser.add_argument("--max-workers", type=int, default=1, help="Max concurrency workers")
     args = parser.parse_args()
 
     # Set up logging with specified level
@@ -104,13 +106,14 @@ def main():
     client = create_client(config)
     model = get_model(config)
     prompt_loader = PromptLoader(config.get("prompt_dir"), config.get("prompts", []))
-    
+
     try:
         transcript = None
         frames = []
         frame_analyses = []
         video_description = None
-        
+        config_frames = config.get("frames", {})
+
         # Stage 1: Frame and Audio Processing
         if args.start_stage <= 1:
             # Initialize audio processor and extract transcript, the AudioProcessor accept following parameters that can be set in config.json:
@@ -121,14 +124,14 @@ def main():
             audio_processor = AudioProcessor(language=config.get("audio", {}).get("language", ""), 
                                              model_size_or_path=config.get("audio", {}).get("whisper_model", "medium"),
                                              device=config.get("audio", {}).get("device", "cpu"))
-            
+
             logger.info("Extracting audio from video...")
             try:
                 audio_path = audio_processor.extract_audio(video_path, output_dir)
             except Exception as e:
                 logger.error(f"Error extracting audio: {e}")
                 audio_path = None
-            
+
             if audio_path is None:
                 logger.debug("No audio found in video - skipping transcription")
                 transcript = None
@@ -137,19 +140,33 @@ def main():
                 transcript = audio_processor.transcribe(audio_path)
                 if transcript is None:
                     logger.warning("Could not generate reliable transcript. Proceeding with video analysis only.")
-            
+
             logger.info(f"Extracting frames from video using model {model}...")
             processor = VideoProcessor(
                 video_path, 
                 output_dir / "frames", 
                 model
             )
-            frames = processor.extract_keyframes(
-                frames_per_minute=config.get("frames", {}).get("per_minute", 60),
-                duration=config.get("duration"),
-                max_frames=args.max_frames
+
+
+            min_difference = float(config_frames.get("min_difference", 0))
+            # Use `min_difference` in the configuration file to update the settings
+            if min_difference > 0:
+                processor.FRAME_DIFFERENCE_THRESHOLD = min_difference
+
+           # Use command line parameters first, followed by configuration files
+            max_frames = (
+                args.max_frames
+                if args.max_frames
+                else config_frames.get("max_count", sys.maxsize)
             )
-            
+
+            frames = processor.extract_keyframes(
+                frames_per_minute=config_frames.get("per_minute", 60),
+                duration=config.get("duration"),
+                max_frames=max_frames,
+            )
+
         # Stage 2: Frame Analysis
         if args.start_stage <= 2:
             logger.info("Analyzing frames...")
@@ -157,28 +174,38 @@ def main():
                 client, 
                 model, 
                 prompt_loader,
-                config.get("clients", {}).get("temperature", 0.2),
+                config_frames.get("temperature", 0.2),
                 config.get("prompt", "")
             )
-            frame_analyses = []
-            for frame in frames:
-                analysis = analyzer.analyze_frame(frame)
-                frame_analyses.append(analysis)
-                
+
+            max_workers = args.max_workers
+            logger.info(f"Using max concurrency workers: {max_workers}")
+            frame_analyses = [None] * len(frames)
+
+            def analyze_frame_wrapper(frame, index):
+                return index, analyzer.analyze_frame(frame)
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [executor.submit(analyze_frame_wrapper, frame, i) for i, frame in enumerate(frames)]
+
+                for future in as_completed(futures):
+                    index, analysis = future.result()
+                    frame_analyses[index] = analysis
+
         # Stage 3: Video Reconstruction
         if args.start_stage <= 3:
             logger.info("Reconstructing video description...")
             video_description = analyzer.reconstruct_video(
                 frame_analyses, frames, transcript
             )
-        
+
         output_dir.mkdir(parents=True, exist_ok=True)
         results = {
             "metadata": {
                 "client": config.get("clients", {}).get("default"),
                 "model": model,
                 "whisper_model": config.get("audio", {}).get("whisper_model"),
-                "frames_per_minute": config.get("frames", {}).get("per_minute"),
+                "frames_per_minute": config_frames.get("per_minute"),
                 "duration_processed": config.get("duration"),
                 "frames_extracted": len(frames),
                 "frames_processed": min(len(frames), args.max_frames),
@@ -193,25 +220,25 @@ def main():
             "frame_analyses": frame_analyses,
             "video_description": video_description
         }
-        
+
         with open(output_dir / "analysis.json", "w") as f:
-            json.dump(results, f, indent=2)
-            
-        logger.info("\nTranscript:")
-        if transcript:
-            logger.info(transcript.text)
-        else:
-            logger.info("No reliable transcript available")
-            
+            json.dump(results, f, indent=4, ensure_ascii=False)
+
+        # logger.info("\nTranscript:")
+        # if transcript:
+        #     logger.info(transcript.text)
+        # else:
+        #     logger.info("No reliable transcript available")
+
         if video_description:
             logger.info("\nVideo Description:")
             logger.info(video_description.get("response", "No description generated"))
-        
+
         if not config.get("keep_frames"):
             cleanup_files(output_dir)
-        
+
         logger.info(f"Analysis complete. Results saved to {output_dir / 'analysis.json'}")
-            
+
     except Exception as e:
         logger.error(f"Error during video analysis: {e}")
         if not config.get("keep_frames"):
