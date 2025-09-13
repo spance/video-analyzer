@@ -9,8 +9,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Constants
-DEFAULT_MAX_RETRIES = 3
-RATE_LIMIT_WAIT_TIME = 25  # seconds
+DEFAULT_MAX_RETRIES = 10
+RATE_LIMIT_WAIT_TIME = 10  # seconds
 DEFAULT_WAIT_TIME = 25  # seconds
 
 class GenericOpenAIAPIClient(LLMClient):
@@ -53,8 +53,8 @@ class GenericOpenAIAPIClient(LLMClient):
         # Prepare headers
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "HTTP-Referer": "https://github.com/byjlw/video-analyzer",
-            "X-Title": "Video Analyzer",
+            # "HTTP-Referer": "https://github.com/byjlw/video-analyzer",
+            # "X-Title": "Video Analyzer",
             "Content-Type": "application/json"
         }
 
