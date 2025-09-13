@@ -72,7 +72,7 @@ def main():
     parser.add_argument("--duration", type=float, help="Duration in seconds to process")
     parser.add_argument("--keep-frames", action="store_true", help="Keep extracted frames after analysis")
     parser.add_argument("--whisper-model", type=str, help="Whisper model size (tiny, base, small, medium, large), or path to local Whisper model snapshot")
-    parser.add_argument("--start-stage", type=int, default=1, help="Stage to start processing from (1-3)")
+    parser.add_argument("--start-stage", type=int, default=0, help="Stage to start processing from (1-3)")
     parser.add_argument("--max-frames", type=int, default=sys.maxsize, help="Maximum number of frames to process")
     parser.add_argument("--log-level", type=str, default="INFO", 
                         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
@@ -114,8 +114,8 @@ def main():
         video_description = None
         config_frames = config.get("frames", {})
 
-        # Stage 1: Frame and Audio Processing
-        if args.start_stage <= 1:
+        # Stage 0: Audio Processing
+        if args.start_stage <= 0:
             # Initialize audio processor and extract transcript, the AudioProcessor accept following parameters that can be set in config.json:
             # language (str): Language code for audio transcription (default: None)
             # whisper_model (str): Whisper model size or path (default: "medium")
@@ -141,13 +141,14 @@ def main():
                 if transcript is None:
                     logger.warning("Could not generate reliable transcript. Proceeding with video analysis only.")
 
+        # Stage 1: Frame Processing
+        if args.start_stage <= 1:
             logger.info(f"Extracting frames from video using model {model}...")
             processor = VideoProcessor(
                 video_path, 
                 output_dir / "frames", 
                 model
             )
-
 
             min_difference = float(config_frames.get("min_difference", 0))
             # Use `min_difference` in the configuration file to update the settings
@@ -160,6 +161,7 @@ def main():
                 if args.max_frames
                 else config_frames.get("max_count", sys.maxsize)
             )
+            logger.info(f"Extracting frames, max_frames: {max_frames}...")
 
             frames = processor.extract_keyframes(
                 frames_per_minute=config_frames.get("per_minute", 60),

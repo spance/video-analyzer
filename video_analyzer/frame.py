@@ -34,7 +34,7 @@ class VideoProcessor:
         gray2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
 
         score, diff_ssim = ssim(gray1, gray2, full=True)
-        # print(f"SSIM Score: {score}, {diff_ssim}")
+        logger.debug(f"SSIM Score: {score}, {diff_ssim}")
 
         return (1 - score) * 255
 
