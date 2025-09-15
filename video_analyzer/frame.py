@@ -19,10 +19,9 @@ class VideoProcessor:
     # Class constants
     FRAME_DIFFERENCE_THRESHOLD = 10.0
 
-    def __init__(self, video_path: Path, output_dir: Path, model: str):
+    def __init__(self, video_path: Path, output_dir: Path):
         self.video_path = video_path
         self.output_dir = output_dir
-        self.model = model
         self.frames: List[Frame] = []
 
     def _diff_ssim(self, frame1: np.ndarray, frame2: np.ndarray) -> float:

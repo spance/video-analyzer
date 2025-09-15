@@ -46,15 +46,15 @@ def cleanup_files(output_dir: Path):
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
 
-def create_client(config: Config):
+def create_client(config: Config, model: str):
     """Create the appropriate client based on configuration."""
     client_type = config.get("clients", {}).get("default", "ollama")
     client_config = get_client(config)
     
     if client_type == "ollama":
-        return OllamaClient(client_config["url"])
+        return OllamaClient(client_config["url"], model)
     elif client_type == "openai_api":
-        return GenericOpenAIAPIClient(client_config["api_key"], client_config["api_url"])
+        return GenericOpenAIAPIClient(client_config["api_key"], client_config["api_url"], model)
     else:
         raise ValueError(f"Unknown client type: {client_type}")
 
@@ -103,8 +103,8 @@ def main():
     # Initialize components
     video_path = Path(args.video_path)
     output_dir = Path(config.get("output_dir"))
-    client = create_client(config)
     model = get_model(config)
+    client = create_client(config, model)
     prompt_loader = PromptLoader(config.get("prompt_dir"), config.get("prompts", []))
 
     try:
@@ -146,8 +146,7 @@ def main():
             logger.info(f"Extracting frames from video using model {model}...")
             processor = VideoProcessor(
                 video_path, 
-                output_dir / "frames", 
-                model
+                output_dir / "frames"
             )
 
             min_difference = float(config_frames.get("min_difference", 0))
@@ -174,7 +173,6 @@ def main():
             logger.info("Analyzing frames...")
             analyzer = VideoAnalyzer(
                 client, 
-                model, 
                 prompt_loader,
                 config_frames.get("temperature", 0.2),
                 config.get("prompt", "")

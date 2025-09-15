@@ -8,18 +8,16 @@ from .audio_processor import AudioTranscript
 logger = logging.getLogger(__name__)
 
 class VideoAnalyzer:
-    def __init__(self, client: LLMClient, model: str, prompt_loader: PromptLoader, temperature: float, user_prompt: str = ""):
+    def __init__(self, client: LLMClient, prompt_loader: PromptLoader, temperature: float, user_prompt: str = ""):
         """Initialize the VideoAnalyzer.
         
         Args:
             client: LLM client for making API calls
-            model: Name of the model to use
             prompt_loader: Loader for prompt templates
             user_prompt: Optional user question about the video that will be injected into frame analysis
                         and video description prompts using the {prompt} token
         """
         self.client = client
-        self.model = model
         self.prompt_loader = prompt_loader
         self.temperature = temperature
         self.user_prompt = user_prompt  # Store user's question about the video
@@ -64,7 +62,6 @@ class VideoAnalyzer:
             response = self.client.generate(
                 prompt=prompt,
                 image_path=str(frame.path),
-                model=self.model,
                 temperature=self.temperature,
                 num_predict=300
             )
@@ -113,7 +110,6 @@ class VideoAnalyzer:
         try:
             response = self.client.generate(
                 prompt=prompt,
-                model=self.model,
                 temperature=self.temperature,
                 num_predict=1000
             )

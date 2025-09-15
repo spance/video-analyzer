@@ -12,7 +12,6 @@ class LLMClient(ABC):
         prompt: str,
         image_path: Optional[str] = None,
         stream: bool = False,
-        model: str = "llama3.2-vision",
         temperature: float = 0.2,
         num_predict: int = 256) -> Dict[Any, Any]:
         pass

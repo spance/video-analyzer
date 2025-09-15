@@ -4,21 +4,21 @@ from typing import Optional, Dict, Any
 from .llm_client import LLMClient
 
 class OllamaClient(LLMClient):
-    def __init__(self, base_url: str = "http://localhost:11434"):
+    def __init__(self, base_url: str, model: str):
         self.base_url = base_url.rstrip('/')
         self.generate_url = f"{self.base_url}/api/generate"
+        self.model = model
 
     def generate(self,
         prompt: str,
         image_path: Optional[str] = None,
         stream: bool = False,
-        model: str = "llama3.2-vision",
         temperature: float = 0.2,
         num_predict: int = 256) -> Dict[Any, Any]:
         try:
             # Build the request data
             data = {
-                "model": model,
+                "model": self.model,
                 "prompt": prompt,
                 "stream": stream,
                 "options": {

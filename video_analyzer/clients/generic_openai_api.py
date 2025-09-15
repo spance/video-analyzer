@@ -14,17 +14,19 @@ RATE_LIMIT_WAIT_TIME = 10  # seconds
 DEFAULT_WAIT_TIME = 25  # seconds
 
 class GenericOpenAIAPIClient(LLMClient):
-    def __init__(self, api_key: str, api_url: str, max_retries: int = DEFAULT_MAX_RETRIES):
+    def __init__(self, api_key: str, api_url: str, model: str, max_retries: int = DEFAULT_MAX_RETRIES):
         self.api_key = api_key
         self.base_url = api_url.rstrip('/')  # Remove trailing slash if present
         self.generate_url = f"{self.base_url}/chat/completions"
+        self.models = list(map(lambda x: x.strip(), model.split(";")))
         self.max_retries = max_retries
+        self.selected = 0
+
 
     def generate(self,
         prompt: str,
         image_path: Optional[str] = None,
         stream: bool = False,
-        model: str = "llama3.2-vision",
         temperature: float = 0.2,
         num_predict: int = 256) -> Dict[Any, Any]:
         """Generate response from OpenAI-compatible API."""
@@ -40,6 +42,11 @@ class GenericOpenAIAPIClient(LLMClient):
             ]
         else:
             content = prompt
+
+        model = self.models[0]
+        if len(self.models) > 1:
+            model = self.models[self.selected % len(self.models)]
+            self.selected += 1
 
         # Prepare request data
         data = {
@@ -63,32 +70,32 @@ class GenericOpenAIAPIClient(LLMClient):
             try:
                 response = requests.post(self.generate_url, headers=headers, json=data)
                 response.raise_for_status()
-                
+
                 # Parse successful response
                 try:
                     json_response = response.json()
                     if 'error' in json_response:
                         raise Exception(f"API error: {json_response['error']}")
-                    
+
                     if stream:
                         return self._handle_streaming_response(response)
-                    
+
                     if 'choices' not in json_response or not json_response['choices']:
                         raise Exception("No choices in response")
-                        
+
                     message = json_response['choices'][0].get('message', {})
                     if not message or 'content' not in message:
                         raise Exception("No content in response message")
-                        
+
                     return {"response": message['content']}
-                    
+
                 except json.JSONDecodeError:
                     raise Exception(f"Invalid JSON response: {response.text}")
-                    
+
             except Exception as e:
                 if attempt == self.max_retries - 1:  # Last attempt
                     raise Exception(f"An error occurred: {str(e)}")
-                
+
                 # Get wait time based on error
                 wait_time = RATE_LIMIT_WAIT_TIME
                 if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 429:
@@ -101,7 +108,7 @@ class GenericOpenAIAPIClient(LLMClient):
                             logger.warning("Invalid Retry-After header value, using default wait time")
                 else:
                     wait_time = DEFAULT_WAIT_TIME
-                
+
                 logger.warning(f"Request failed (attempt {attempt + 1}/{self.max_retries}): {str(e)}")
                 logger.warning(f"Waiting {wait_time} seconds before retry")
                 time.sleep(wait_time)
