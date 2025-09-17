@@ -121,9 +121,14 @@ def main():
             # whisper_model (str): Whisper model size or path (default: "medium")
             # device (str): Device to use for audio processing (default: "cpu")
             logger.debug("Initializing audio processing...")
-            audio_processor = AudioProcessor(language=config.get("audio", {}).get("language", ""), 
-                                             model_size_or_path=config.get("audio", {}).get("whisper_model", "medium"),
-                                             device=config.get("audio", {}).get("device", "cpu"))
+            audio_processor = AudioProcessor(
+                language=config.get("audio", {}).get("language", ""),
+                initial_prompt=config.get("audio", {}).get("initial_prompt", ""),
+                model_size_or_path=config.get("audio", {}).get(
+                    "whisper_model", "medium"
+                ),
+                device=config.get("audio", {}).get("device", "cpu"),
+            )
 
             logger.info("Extracting audio from video...")
             try:
@@ -141,6 +146,7 @@ def main():
                 if transcript is None:
                     logger.warning("Could not generate reliable transcript. Proceeding with video analysis only.")
 
+        processor = None
         # Stage 1: Frame Processing
         if args.start_stage <= 1:
             logger.info(f"Extracting frames from video using model {model}...")
@@ -154,7 +160,7 @@ def main():
             if min_difference > 0:
                 processor.FRAME_DIFFERENCE_THRESHOLD = min_difference
 
-           # Use command line parameters first, followed by configuration files
+            # Use command line parameters first, followed by configuration files
             max_frames = (
                 args.max_frames
                 if args.max_frames
@@ -206,6 +212,8 @@ def main():
                 "model": model,
                 "whisper_model": config.get("audio", {}).get("whisper_model"),
                 "frames_per_minute": config_frames.get("per_minute"),
+                "total_frames": processor and processor.metadata[0],
+                "video_duration": processor and processor.metadata[1],
                 "duration_processed": config.get("duration"),
                 "frames_extracted": len(frames),
                 "frames_processed": min(len(frames), args.max_frames),

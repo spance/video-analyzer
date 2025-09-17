@@ -19,6 +19,7 @@ class AudioTranscript:
 class AudioProcessor:
     def __init__(self, 
                  language: str | None = None,
+                 initial_prompt: str | None = None,
                  model_size_or_path: str = "medium",
                  device: str = "cpu"):
         """Initialize audio processor with specified Whisper model size or model path. By default, the medium model is used."""
@@ -35,6 +36,7 @@ class AudioProcessor:
             logger.debug(f"Using device: {self.device}")
 
             self.language = language if language else None
+            self.initial_prompt = initial_prompt if initial_prompt else None
 
             self.model = WhisperModel(
                 model_size_or_path,
@@ -118,7 +120,8 @@ class AudioProcessor:
                 word_timestamps=True,
                 vad_filter=True,
                 vad_parameters=dict(min_silence_duration_ms=500),
-                language = self.language if self.language in accepted_languages else None
+                language = self.language if self.language in accepted_languages else None,
+                initial_prompt = self.initial_prompt
             )
             
             segments_list = list(segments)

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 import cv2
 import numpy as np
 import logging
@@ -23,6 +23,7 @@ class VideoProcessor:
         self.video_path = video_path
         self.output_dir = output_dir
         self.frames: List[Frame] = []
+        self.metadata: List[Any] = []
 
     def _diff_ssim(self, frame1: np.ndarray, frame2: np.ndarray) -> float:
         if frame1 is None or frame2 is None:
@@ -33,7 +34,7 @@ class VideoProcessor:
         gray2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
 
         score, diff_ssim = ssim(gray1, gray2, full=True)
-        logger.debug(f"SSIM Score: {score}, {diff_ssim}")
+        logger.debug(f"SSIM Score: {score}")
 
         return (1 - score) * 255
 
@@ -71,6 +72,8 @@ class VideoProcessor:
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         video_duration = total_frames / fps
+        self.metadata.append(total_frames)
+        self.metadata.append(video_duration)
 
         if duration:
             video_duration = min(duration, video_duration)
