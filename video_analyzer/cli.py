@@ -145,6 +145,10 @@ def main():
                 transcript = audio_processor.transcribe(audio_path)
                 if transcript is None:
                     logger.warning("Could not generate reliable transcript. Proceeding with video analysis only.")
+                else:
+                    transcript.serialize(output_dir / 'transcript.json')
+        else:
+            transcript = AudioTranscript.deserialize(output_dir / 'transcript.json')
 
         processor = None
         # Stage 1: Frame Processing

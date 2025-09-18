@@ -84,7 +84,6 @@
 
 按以下格式输出你的摘要：
 
-```
 IDEO SUMMARY
 Duration: [if provided in notes]
 
@@ -95,4 +94,3 @@ Duration: [if provided in notes]
 [结尾观察 - 最终状态/结局]
 
 注：此摘要基于对首帧的直接观察及后续帧的详细笔记。
-```

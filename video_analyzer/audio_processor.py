@@ -1,7 +1,8 @@
+import json
 import logging
 from pathlib import Path
 from typing import Optional, Dict, List, Any
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import subprocess
 import torch
 from pydub import AudioSegment
@@ -15,6 +16,17 @@ class AudioTranscript:
     text: str
     segments: List[Dict[str, Any]]
     language: str
+
+    @classmethod
+    def deserialize(cls, file_path: Path) -> 'AudioTranscript':
+        with open(file_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+            return cls(**data)
+    
+    def serialize(self, file_path: Path):
+        logger.info(f"serialize to {file_path}")
+        with open(file_path, 'w', encoding='utf-8') as file:
+            json.dump(asdict(self), file, indent=2, ensure_ascii=False)
 
 class AudioProcessor:
     def __init__(self, 
